@@ -167,20 +167,8 @@ const AuditTrail = () => {
           }
         }
 
-        // Get user name
-        let userName = "Unknown User";
-
-        try {
-          const userDoc = await getDoc(doc(db, "users", data.uid));
-          if (userDoc.exists()) {
-            userName =
-              userDoc.data().display_name ||
-              userDoc.data().email ||
-              "Unknown User";
-          }
-        } catch (error) {
-          console.error("Error fetching user:", error);
-        }
+        // Get user name or id for display
+        let userName = data.uid; // Always use uid, even for admins
 
         records.push({
           id: doc.id,

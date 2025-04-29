@@ -197,7 +197,19 @@ const RateTable = ({
                     scope="col"
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
-                    Rate (PHP)
+                    200-399 kWh Rate (₱/kWh)
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    400-799 kWh Rate (₱/kWh)
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    800+ kWh Rate (₱/kWh)
                   </th>
                   <th
                     scope="col"
@@ -236,6 +248,21 @@ const RateTable = ({
                   <tr key={rate.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       ₱{rate.rate.toFixed(2)}
+                      <div className="text-xs text-gray-500">200-399 kWh</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ₱{(rate.kwh_rate2 ?? rate.rate + 0.56).toFixed(2)}
+                      <div className="text-xs text-gray-500">400-799 kWh</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ₱
+                      {(
+                        rate.kwh_rate3 ??
+                        (rate.kwh_rate2
+                          ? rate.kwh_rate2 + 0.62
+                          : rate.rate + 0.56 + 0.62)
+                      ).toFixed(2)}
+                      <div className="text-xs text-gray-500">800+ kWh</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {rate.effectiveFrom.toLocaleDateString()}

@@ -25,30 +25,30 @@ const RateImpactAnalysis = () => {
     const fetchRateData = async () => {
       try {
         setLoading(true);
-
-        // Fetch current and historical rates
         const ratesRef = collection(db, "meralcorate");
         const ratesQuery = query(
           ratesRef,
           orderBy("effective_from", "desc"),
           limit(10)
         );
-
         const querySnapshot = await getDocs(ratesQuery);
-
         if (!querySnapshot.empty) {
           const rates = querySnapshot.docs.map((doc) => {
             const data = doc.data();
             return {
               id: doc.id,
               rate: data.kwh_rate,
+              rate2: data.kwh_rate2 ?? data.kwh_rate + 0.56,
+              rate3:
+                data.kwh_rate3 ??
+                (data.kwh_rate2
+                  ? data.kwh_rate2 + 0.62
+                  : data.kwh_rate + 0.56 + 0.62),
               date: data.effective_from?.toDate() || new Date(),
               archived: data.archived || false,
             };
           });
-
           setRateData(rates);
-
           // Set current rate
           const current = rates.find((r) => !r.archived);
           if (current) {
@@ -62,110 +62,59 @@ const RateImpactAnalysis = () => {
         setLoading(false);
       }
     };
-
     fetchRateData();
   }, []);
 
-  // Generate consumption data (mocked for demo)
-  const generateConsumptionData = () => {
+  // Generate residential consumption data for each bracket
+  const generateResidentialConsumptionData = () => {
     const data = [];
-
-    // Generate monthly consumption data for different user types
     for (let month = 1; month <= 12; month++) {
+      // Simulate household consumption for each bracket
       data.push({
         month: `Month ${month}`,
-        residential: Math.floor(Math.random() * 300) + 100, // 100-400 kWh
-        commercial: Math.floor(Math.random() * 1000) + 500, // 500-1500 kWh
-        industrial: Math.floor(Math.random() * 5000) + 2000, // 2000-7000 kWh
+        kwh_200_399: Math.floor(Math.random() * 200) + 200, // 200-399
+        kwh_400_799: Math.floor(Math.random() * 400) + 400, // 400-799
+        kwh_800_up: Math.floor(Math.random() * 400) + 800, // 800-1199
       });
     }
-
     return data;
   };
 
-  // Calculate impact when simulated rate changes
   useEffect(() => {
-    if (currentRate && simulatedRate) {
-      const consumptionData = generateConsumptionData();
-
-      // Calculate bill amounts and differences
+    if (currentRate != null) {
+      const base = currentRate;
+      const rate2 = rateData[0]?.rate2 ?? base + 0.56;
+      const rate3 = rateData[0]?.rate3 ?? rate2 + 0.62;
+      const consumptionData = generateResidentialConsumptionData();
       const impactData = consumptionData.map((item) => {
-        const residentialCurrentBill = item.residential * currentRate;
-        const residentialNewBill = item.residential * simulatedRate;
-        const residentialDiff = residentialNewBill - residentialCurrentBill;
-
-        const commercialCurrentBill = item.commercial * currentRate;
-        const commercialNewBill = item.commercial * simulatedRate;
-        const commercialDiff = commercialNewBill - commercialCurrentBill;
-
-        const industrialCurrentBill = item.industrial * currentRate;
-        const industrialNewBill = item.industrial * simulatedRate;
-        const industrialDiff = industrialNewBill - industrialCurrentBill;
-
+        const bill1 = item.kwh_200_399 * base;
+        const bill2 = item.kwh_400_799 * rate2;
+        const bill3 = item.kwh_800_up * rate3;
         return {
           ...item,
-          residentialCurrentBill,
-          residentialNewBill,
-          residentialDiff,
-          residentialPctChange:
-            (residentialDiff / residentialCurrentBill) * 100,
-
-          commercialCurrentBill,
-          commercialNewBill,
-          commercialDiff,
-          commercialPctChange: (commercialDiff / commercialCurrentBill) * 100,
-
-          industrialCurrentBill,
-          industrialNewBill,
-          industrialDiff,
-          industrialPctChange: (industrialDiff / industrialCurrentBill) * 100,
+          bill_200_399: bill1,
+          bill_400_799: bill2,
+          bill_800_up: bill3,
         };
       });
-
       setImpactData(impactData);
     }
-  }, [currentRate, simulatedRate]);
+  }, [currentRate, rateData]);
 
-  // Calculate overall impact summary
-  const calculateImpactSummary = () => {
+  // Calculate summary for each bracket
+  const calculateBracketSummary = () => {
     if (!impactData.length) return null;
-
-    const residentialImpact = impactData.reduce(
-      (sum, item) => sum + item.residentialDiff,
-      0
-    );
-    const commercialImpact = impactData.reduce(
-      (sum, item) => sum + item.commercialDiff,
-      0
-    );
-    const industrialImpact = impactData.reduce(
-      (sum, item) => sum + item.industrialDiff,
-      0
-    );
-    const totalImpact = residentialImpact + commercialImpact + industrialImpact;
-
-    const avgResidentialPct =
-      impactData.reduce((sum, item) => sum + item.residentialPctChange, 0) /
-      impactData.length;
-    const avgCommercialPct =
-      impactData.reduce((sum, item) => sum + item.commercialPctChange, 0) /
-      impactData.length;
-    const avgIndustrialPct =
-      impactData.reduce((sum, item) => sum + item.industrialPctChange, 0) /
-      impactData.length;
-
+    const sum = (arr, key) => arr.reduce((acc, item) => acc + item[key], 0);
     return {
-      residentialImpact,
-      commercialImpact,
-      industrialImpact,
-      totalImpact,
-      avgResidentialPct,
-      avgCommercialPct,
-      avgIndustrialPct,
+      total_200_399: sum(impactData, "bill_200_399"),
+      total_400_799: sum(impactData, "bill_400_799"),
+      total_800_up: sum(impactData, "bill_800_up"),
+      avg_200_399: sum(impactData, "bill_200_399") / impactData.length,
+      avg_400_799: sum(impactData, "bill_400_799") / impactData.length,
+      avg_800_up: sum(impactData, "bill_800_up") / impactData.length,
     };
   };
-
-  const impactSummary = calculateImpactSummary();
+  const bracketSummary = calculateBracketSummary();
 
   return (
     <div className="space-y-6">
@@ -179,147 +128,57 @@ const RateImpactAnalysis = () => {
         </div>
       ) : (
         <>
-          {/* Rate Simulation Controls */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-md font-medium text-gray-900 mb-4">
-              Rate Simulation
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label
-                  htmlFor="currentRate"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Current Rate (₱/kWh)
-                </label>
-                <input
-                  type="text"
-                  id="currentRate"
-                  className="form-input bg-gray-100"
-                  value={currentRate?.toFixed(2) || ""}
-                  disabled
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="simulatedRate"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Simulated Rate (₱/kWh)
-                </label>
-                <input
-                  type="number"
-                  id="simulatedRate"
-                  className="form-input"
-                  value={simulatedRate || ""}
-                  onChange={(e) =>
-                    setSimulatedRate(parseFloat(e.target.value) || 0)
-                  }
-                  step="0.01"
-                  min="0"
-                />
-              </div>
-            </div>
-
-            <div className="mt-4">
-              <p className="text-sm text-gray-500">
-                Adjust the simulated rate to see the impact on different
-                customer types. The current analysis shows a change from ₱
-                {currentRate?.toFixed(2) || "0.00"} to ₱
-                {simulatedRate?.toFixed(2) || "0.00"} per kWh.
-              </p>
-            </div>
-          </div>
-
-          {/* Impact Summary */}
-          {impactSummary && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Rate Bracket Summary */}
+          {bracketSummary && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white rounded-lg shadow-md p-4">
-                <p className="text-sm text-gray-500">Residential Impact</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    impactSummary.residentialImpact >= 0
-                      ? "text-[#dc3545]"
-                      : "text-[#28a745]"
-                  }`}
-                >
-                  {impactSummary.residentialImpact >= 0 ? "+" : ""}₱
-                  {impactSummary.residentialImpact.toLocaleString("en-US", {
+                <p className="text-sm text-gray-500 font-semibold">
+                  200-399 kWh
+                </p>
+                <p className="text-2xl font-bold">
+                  ₱
+                  {bracketSummary.avg_200_399.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {impactSummary.avgResidentialPct.toFixed(2)}% change
+                  Avg. monthly bill (200-399kWh consumption)
                 </p>
               </div>
-
               <div className="bg-white rounded-lg shadow-md p-4">
-                <p className="text-sm text-gray-500">Commercial Impact</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    impactSummary.commercialImpact >= 0
-                      ? "text-[#dc3545]"
-                      : "text-[#28a745]"
-                  }`}
-                >
-                  {impactSummary.commercialImpact >= 0 ? "+" : ""}₱
-                  {impactSummary.commercialImpact.toLocaleString("en-US", {
+                <p className="text-sm text-gray-500 font-semibold">
+                  400-799 kWh
+                </p>
+                <p className="text-2xl font-bold">
+                  ₱
+                  {bracketSummary.avg_400_799.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {impactSummary.avgCommercialPct.toFixed(2)}% change
+                  Avg. monthly bill (400-799kWh consumption)
                 </p>
               </div>
-
               <div className="bg-white rounded-lg shadow-md p-4">
-                <p className="text-sm text-gray-500">Industrial Impact</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    impactSummary.industrialImpact >= 0
-                      ? "text-[#dc3545]"
-                      : "text-[#28a745]"
-                  }`}
-                >
-                  {impactSummary.industrialImpact >= 0 ? "+" : ""}₱
-                  {impactSummary.industrialImpact.toLocaleString("en-US", {
+                <p className="text-sm text-gray-500 font-semibold">800+ kWh</p>
+                <p className="text-2xl font-bold">
+                  ₱
+                  {bracketSummary.avg_800_up.toLocaleString(undefined, {
                     maximumFractionDigits: 2,
                   })}
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {impactSummary.avgIndustrialPct.toFixed(2)}% change
-                </p>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-md p-4">
-                <p className="text-sm text-gray-500">Total Impact</p>
-                <p
-                  className={`text-2xl font-bold ${
-                    impactSummary.totalImpact >= 0
-                      ? "text-[#dc3545]"
-                      : "text-[#28a745]"
-                  }`}
-                >
-                  {impactSummary.totalImpact >= 0 ? "+" : ""}₱
-                  {impactSummary.totalImpact.toLocaleString("en-US", {
-                    maximumFractionDigits: 2,
-                  })}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Across all customer types
+                  Avg. monthly bill (800+ kWh consumption)
                 </p>
               </div>
             </div>
           )}
 
-          {/* Impact Chart */}
+          {/* Chart */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-md font-medium text-gray-900 mb-4">
-              Monthly Bill Impact by Customer Type
+              Residential Bill Impact by Consumption Bracket
             </h3>
-
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
@@ -330,93 +189,66 @@ const RateImpactAnalysis = () => {
                   <XAxis dataKey="month" />
                   <YAxis
                     label={{
-                      value: "Bill Impact (₱)",
+                      value: "Bill (₱)",
                       angle: -90,
                       position: "insideLeft",
                       style: { textAnchor: "middle" },
                     }}
                   />
                   <Tooltip
-                    formatter={(value) => [`₱${value.toFixed(2)}`, ""]}
+                    formatter={(value) => [
+                      `₱${value.toLocaleString(undefined, {
+                        maximumFractionDigits: 2,
+                      })}`,
+                      "",
+                    ]}
                     labelFormatter={(label) => `Month: ${label}`}
                   />
                   <Legend />
-                  <ReferenceLine y={0} stroke="#000" />
                   <Line
                     type="monotone"
-                    dataKey="residentialDiff"
-                    name="Residential"
+                    dataKey="bill_200_399"
+                    name="200-399 kWh"
                     stroke="#1e386d"
-                    activeDot={{ r: 8 }}
+                    strokeWidth={2}
                   />
                   <Line
                     type="monotone"
-                    dataKey="commercialDiff"
-                    name="Commercial"
+                    dataKey="bill_400_799"
+                    name="400-799 kWh"
                     stroke="#ffc107"
-                    activeDot={{ r: 8 }}
+                    strokeWidth={2}
                   />
                   <Line
                     type="monotone"
-                    dataKey="industrialDiff"
-                    name="Industrial"
-                    stroke="#28a745"
-                    activeDot={{ r: 8 }}
+                    dataKey="bill_800_up"
+                    name="800+ kWh"
+                    stroke="#dc3545"
+                    strokeWidth={2}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Impact Recommendation */}
+          {/* Recommendation */}
           <div className="bg-gray-50 p-6 rounded-lg">
             <h3 className="text-md font-medium text-gray-900 mb-2">
-              Impact Analysis Recommendation
+              Recommendation
             </h3>
-
-            {impactSummary && (
+            {bracketSummary && (
               <div className="space-y-2">
                 <p className="text-sm text-gray-600">
-                  {simulatedRate > currentRate
-                    ? `Increasing the rate from ₱${currentRate?.toFixed(
-                        2
-                      )} to ₱${simulatedRate?.toFixed(2)} 
-                    per kWh will result in an estimated total increase of 
-                    ₱${impactSummary.totalImpact.toLocaleString("en-US", {
-                      maximumFractionDigits: 2,
-                    })} 
-                    across all customer types.`
-                    : simulatedRate < currentRate
-                    ? `Decreasing the rate from ₱${currentRate?.toFixed(
-                        2
-                      )} to ₱${simulatedRate?.toFixed(2)} 
-                    per kWh will result in an estimated total decrease of 
-                    ₱${Math.abs(impactSummary.totalImpact).toLocaleString(
-                      "en-US",
-                      { maximumFractionDigits: 2 }
-                    )} 
-                    across all customer types.`
-                    : "No change in rates means no impact on customer bills."}
+                  For households consuming 200-399 kWh, the average monthly bill
+                  is lowest, but as consumption increases to 400-799 kWh and
+                  above 800 kWh, the bill increases significantly due to higher
+                  rates. Consider educating users about the impact of higher
+                  consumption brackets and encourage energy-saving habits.
                 </p>
-
-                <p className="text-sm text-gray-600">
-                  The greatest impact will be on
-                  {Math.abs(impactSummary.industrialImpact) >
-                    Math.abs(impactSummary.commercialImpact) &&
-                  Math.abs(impactSummary.industrialImpact) >
-                    Math.abs(impactSummary.residentialImpact)
-                    ? " industrial customers"
-                    : Math.abs(impactSummary.commercialImpact) >
-                      Math.abs(impactSummary.residentialImpact)
-                    ? " commercial customers"
-                    : " residential customers"}
-                  .
-                </p>
-
-                <p className="text-sm text-gray-600 font-medium mt-4">
-                  {Math.abs(impactSummary.avgResidentialPct) > 10
-                    ? "This rate change may have a significant impact on residential customers. Consider implementing the change gradually."
-                    : "The impact on residential customers appears manageable."}
+                <p className="text-sm text-gray-600 font-medium mt-2">
+                  Recommendation: Display bracketed rates clearly in the mobile
+                  app and provide tips for staying within lower consumption
+                  brackets to help users save on their electricity bills.
                 </p>
               </div>
             )}

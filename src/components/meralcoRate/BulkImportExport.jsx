@@ -127,6 +127,22 @@ const BulkImportExport = ({ onImportComplete }) => {
     }
   };
 
+  // Audit trail logging for export/import
+  const logAudit = async (action, details) => {
+    if (!currentUser) return;
+    try {
+      await addDoc(collection(db, "audittrail"), {
+        action,
+        timestamp: getServerTimestamp(),
+        uid: currentUser.uid,
+        details,
+      });
+    } catch (e) {
+      // Silent fail, do not block import/export
+      console.error("Failed to log audit event", e);
+    }
+  };
+
   // Process the import
   const handleImport = async () => {
     if (importPreview.length === 0) {
@@ -144,8 +160,13 @@ const BulkImportExport = ({ onImportComplete }) => {
 
       // Import each rate
       for (const rate of importPreview) {
+        const baseRate = rate.rate;
+        const rate2 = baseRate + 0.56;
+        const rate3 = rate2 + 0.62;
         await addDoc(ratesRef, {
-          kwh_rate: rate.rate,
+          kwh_rate: baseRate,
+          kwh_rate2: rate2,
+          kwh_rate3: rate3,
           effective_from: createTimestamp(rate.effectiveDate),
           updated_datetime: getServerTimestamp(),
           updated_by: currentUser.uid,
@@ -164,6 +185,11 @@ const BulkImportExport = ({ onImportComplete }) => {
       if (onImportComplete) {
         onImportComplete();
       }
+
+      await logAudit("import_rates", {
+        count: importedCount,
+        fileName: importFile?.name || null,
+      });
     } catch (error) {
       console.error("Error importing rates:", error);
       setError("Failed to import rates. Please try again.");
@@ -192,8 +218,13 @@ const BulkImportExport = ({ onImportComplete }) => {
       // Format data for export
       const exportData = querySnapshot.docs.map((doc) => {
         const data = doc.data();
+        const baseRate = data.kwh_rate;
+        const rate2 = data.kwh_rate2 ?? baseRate + 0.56;
+        const rate3 = data.kwh_rate3 ?? rate2 + 0.62;
         return {
-          "Rate (PHP)": data.kwh_rate,
+          "Rate (PHP)": baseRate,
+          "Rate2 (PHP)": rate2,
+          "Rate3 (PHP)": rate3,
           "Effective Date": data.effective_from?.toDate()
             ? format(data.effective_from.toDate(), "MM/dd/yyyy")
             : "N/A",
@@ -238,8 +269,11 @@ const BulkImportExport = ({ onImportComplete }) => {
         "yyyyMMdd"
       )}.xlsx`;
       saveAs(blob, fileName);
-
       setSuccess("Rates exported successfully.");
+      await logAudit("export_rates", {
+        count: exportData.length,
+        fileName,
+      });
     } catch (error) {
       console.error("Error exporting rates:", error);
       setError("Failed to export rates. Please try again.");
@@ -254,12 +288,16 @@ const BulkImportExport = ({ onImportComplete }) => {
     const sampleData = [
       {
         "Rate (PHP)": 10.5,
+        "Rate2 (PHP)": 11.06,
+        "Rate3 (PHP)": 11.68,
         "Effective Date": format(new Date(), "MM/dd/yyyy"),
         Archived: "No",
         Notes: "Sample rate 1",
       },
       {
         "Rate (PHP)": 11.25,
+        "Rate2 (PHP)": 11.81,
+        "Rate3 (PHP)": 12.43,
         "Effective Date": format(
           new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           "MM/dd/yyyy"
@@ -277,7 +315,17 @@ const BulkImportExport = ({ onImportComplete }) => {
       {
         Field: "Rate (PHP)",
         Description:
-          "The electricity rate in Philippine Pesos per kWh (required)",
+          "The base electricity rate in Philippine Pesos per kWh (required). Rate2 and Rate3 are auto-calculated.",
+      },
+      {
+        Field: "Rate2 (PHP)",
+        Description:
+          "Auto-calculated: Rate (PHP) + 0.56. Used for 400-799 kWh consumption.",
+      },
+      {
+        Field: "Rate3 (PHP)",
+        Description:
+          "Auto-calculated: Rate2 (PHP) + 0.62. Used for 800 kWh and up.",
       },
       {
         Field: "Effective Date",

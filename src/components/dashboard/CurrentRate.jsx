@@ -38,8 +38,35 @@ const CurrentRate = ({ rate }) => {
 
       <div className="space-y-4">
         <div>
-          <p className="text-sm text-gray-500">Rate per kWh</p>
-          <p className="text-2xl font-bold">₱{rate.rate.toFixed(2)}</p>
+          <p className="text-sm text-gray-500 font-semibold">
+            Rates per kWh (by consumption bracket)
+          </p>
+          <ul className="text-base font-bold space-y-1">
+            <li>
+              <span className="text-[#1e386d]">₱{rate.rate.toFixed(2)}</span>
+              <span className="text-sm text-gray-600 ml-2">(200-399 kWh)</span>
+            </li>
+            <li>
+              <span className="text-[#1e386d]">
+                ₱{(rate.kwh_rate2 ?? rate.rate + 0.56).toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-600 ml-2">(400-799 kWh)</span>
+            </li>
+            <li>
+              <span className="text-[#1e386d]">
+                ₱
+                {(
+                  rate.kwh_rate3 ??
+                  (rate.kwh_rate2
+                    ? rate.kwh_rate2 + 0.62
+                    : rate.rate + 0.56 + 0.62)
+                ).toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-600 ml-2">
+                (800 kWh and up)
+              </span>
+            </li>
+          </ul>
         </div>
 
         <div className="text-sm">

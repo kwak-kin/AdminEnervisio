@@ -34,6 +34,12 @@ const RateHistory = () => {
           return {
             id: doc.id,
             rate: data.kwh_rate,
+            rate2: data.kwh_rate2 ?? data.kwh_rate + 0.56,
+            rate3:
+              data.kwh_rate3 ??
+              (data.kwh_rate2
+                ? data.kwh_rate2 + 0.62
+                : data.kwh_rate + 0.56 + 0.62),
             date: data.effective_from?.toDate() || new Date(),
             formattedDate:
               data.effective_from?.toDate().toLocaleDateString() ||
@@ -90,20 +96,42 @@ const RateHistory = () => {
     if (chartData.length === 0) return { min: 0, max: 0, avg: 0, change: 0 };
 
     const rates = chartData.map((item) => item.rate);
+    const rates2 = chartData.map((item) => item.rate2);
+    const rates3 = chartData.map((item) => item.rate3);
     const min = Math.min(...rates);
     const max = Math.max(...rates);
     const avg = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+    const min2 = Math.min(...rates2);
+    const max2 = Math.max(...rates2);
+    const avg2 = rates2.reduce((sum, rate) => sum + rate, 0) / rates2.length;
+    const min3 = Math.min(...rates3);
+    const max3 = Math.max(...rates3);
+    const avg3 = rates3.reduce((sum, rate) => sum + rate, 0) / rates3.length;
 
-    // Calculate change from first to last
+    // Calculate change from first to last for each
     const first = chartData[0].rate;
     const last = chartData[chartData.length - 1].rate;
     const change = ((last - first) / first) * 100;
+    const first2 = chartData[0].rate2;
+    const last2 = chartData[chartData.length - 1].rate2;
+    const change2 = ((last2 - first2) / first2) * 100;
+    const first3 = chartData[0].rate3;
+    const last3 = chartData[chartData.length - 1].rate3;
+    const change3 = ((last3 - first3) / first3) * 100;
 
     return {
       min: min.toFixed(2),
       max: max.toFixed(2),
       avg: avg.toFixed(2),
       change: change.toFixed(2),
+      min2: min2.toFixed(2),
+      max2: max2.toFixed(2),
+      avg2: avg2.toFixed(2),
+      change2: change2.toFixed(2),
+      min3: min3.toFixed(2),
+      max3: max3.toFixed(2),
+      avg3: avg3.toFixed(2),
+      change3: change3.toFixed(2),
     };
   };
 
@@ -153,30 +181,24 @@ const RateHistory = () => {
           {/* Stats Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-sm text-gray-500">Minimum Rate</p>
+              <p className="text-sm text-gray-500">Min Rate (200-399 kWh)</p>
               <p className="text-2xl font-bold">₱{stats.min}</p>
+              <p className="text-xs text-gray-500">Change: {stats.change}%</p>
             </div>
             <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-sm text-gray-500">Maximum Rate</p>
-              <p className="text-2xl font-bold">₱{stats.max}</p>
+              <p className="text-sm text-gray-500">Min Rate (400-799 kWh)</p>
+              <p className="text-2xl font-bold">₱{stats.min2}</p>
+              <p className="text-xs text-gray-500">Change: {stats.change2}%</p>
             </div>
             <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-sm text-gray-500">Average Rate</p>
-              <p className="text-2xl font-bold">₱{stats.avg}</p>
+              <p className="text-sm text-gray-500">Min Rate (800+ kWh)</p>
+              <p className="text-2xl font-bold">₱{stats.min3}</p>
+              <p className="text-xs text-gray-500">Change: {stats.change3}%</p>
             </div>
             <div className="bg-white rounded-lg shadow-md p-4">
-              <p className="text-sm text-gray-500">Change</p>
-              <p
-                className={`text-2xl font-bold ${
-                  parseFloat(stats.change) > 0
-                    ? "text-[#dc3545]"
-                    : parseFloat(stats.change) < 0
-                    ? "text-[#28a745]"
-                    : "text-gray-500"
-                }`}
-              >
-                {parseFloat(stats.change) > 0 ? "+" : ""}
-                {stats.change}%
+              <p className="text-sm text-gray-500">Avg Rate (All Brackets)</p>
+              <p className="text-2xl font-bold">
+                ₱{stats.avg} / ₱{stats.avg2} / ₱{stats.avg3}
               </p>
             </div>
           </div>
@@ -208,9 +230,23 @@ const RateHistory = () => {
                   <Line
                     type="monotone"
                     dataKey="rate"
-                    name="Rate (₱/kWh)"
+                    name="Rate (200-399 kWh)"
                     stroke="#1e386d"
                     activeDot={{ r: 8 }}
+                    strokeWidth={2}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="rate2"
+                    name="Rate (400-799 kWh)"
+                    stroke="#ffc107"
+                    strokeWidth={2}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="rate3"
+                    name="Rate (800+ kWh)"
+                    stroke="#dc3545"
                     strokeWidth={2}
                   />
                 </LineChart>

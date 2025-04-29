@@ -228,9 +228,14 @@ const MeralcoRates = () => {
       // Start the transaction
       if (isEditMode && selectedRate) {
         // Update existing rate
+        const baseRate = parseFloat(data.rate);
+        const rate2 = baseRate + 0.56;
+        const rate3 = rate2 + 0.62;
         const rateRef = doc(db, "meralcorate", selectedRate.id);
         await updateDoc(rateRef, {
-          kwh_rate: parseFloat(data.rate),
+          kwh_rate: baseRate,
+          kwh_rate2: rate2,
+          kwh_rate3: rate3,
           effective_from: createTimestamp(data.effectiveDate),
           updated_datetime: getServerTimestamp(),
           updated_by: currentUser.uid,
@@ -285,8 +290,13 @@ const MeralcoRates = () => {
         }
 
         // 3. Create the new rate
+        const baseRate = parseFloat(data.rate);
+        const rate2 = baseRate + 0.62;
+        const rate3 = rate2 + 0.56;
         const newRateRef = await addDoc(collection(db, "meralcorate"), {
-          kwh_rate: parseFloat(data.rate),
+          kwh_rate: baseRate,
+          kwh_rate2: rate2,
+          kwh_rate3: rate3,
           effective_from: createTimestamp(data.effectiveDate),
           updated_datetime: getServerTimestamp(),
           updated_by: currentUser.uid,

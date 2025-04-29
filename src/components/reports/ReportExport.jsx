@@ -4,6 +4,9 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { db, getServerTimestamp } from "../../services/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { useAuth } from "../../context/AuthContext";
 
 const ReportExport = ({ chartData, activeTab, onClose }) => {
   const [loading, setLoading] = useState(false);
@@ -11,6 +14,7 @@ const ReportExport = ({ chartData, activeTab, onClose }) => {
   const [includeCharts, setIncludeCharts] = useState(true);
   const [includeAllData, setIncludeAllData] = useState(false);
   const [logoImage, setLogoImage] = useState(null); // Add this state for the logo image
+  const { currentUser } = useAuth();
 
   // Update the useEffect that loads the logo image
   useEffect(() => {
@@ -621,21 +625,45 @@ const ReportExport = ({ chartData, activeTab, onClose }) => {
     doc.save(`${getFileName()}.pdf`);
   };
 
+  // Audit trail logging for export
+  const logAuditExport = async (format) => {
+    if (!currentUser) return;
+    try {
+      await addDoc(collection(db, "audittrail"), {
+        action: "export_report",
+        timestamp: getServerTimestamp(),
+        uid: currentUser.uid,
+        details: {
+          format,
+          section: includeAllData ? "all" : activeTab,
+          includeAllData,
+          includeCharts,
+        },
+      });
+    } catch (e) {
+      // Silent fail, do not block export
+      console.error("Failed to log audit export", e);
+    }
+  };
+
   // Handle export button click
   const handleExport = () => {
     setLoading(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       try {
         switch (exportFormat) {
           case "xlsx":
             exportToExcel();
+            await logAuditExport("xlsx");
             break;
           case "csv":
             exportToCSV();
+            await logAuditExport("csv");
             break;
           case "pdf":
             exportToPDF();
+            await logAuditExport("pdf");
             break;
           default:
             alert("Invalid export format selected.");
